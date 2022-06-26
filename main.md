@@ -12,7 +12,25 @@ func main() {
 }
 ```
 
+
+## Variable Declarations
+
+```go
+var something string //uninitialized and "zero" valued
+var name string = "Pier"
+myName := "Pier" //shorthand
+
+var ( //multi line
+	city string = "Milan"
+	nation string = "Italy"
+)
+```
+
+Shortand declarations work only inside a function scope, the compiler will report an error if used outside of it.
+
+
 ## Constants
+
 Constants are considered global variables so don't use too many. 
 
 Basically the value of a constant variable is defined at compile time, not a runtime.
@@ -25,6 +43,36 @@ const (
 	C2 = "C2C2C2"
 )
 ```
+
+## Integers
+
+Go has `int` and `uint` which size depends on the platform (32bits systems have 32bits int, 64bit systems have 64 bits int)
+
+If you need, and have a valid reason, you can use some other fine grained int (`int8 int16 int32 int64`) or uint (`uint8 uint16 uint32 uint64`) sizes.
+
+Go has also a `byte` type which is an alias of `uint8`.
+
+
+## Floating Points
+
+Go has `float32` and `float64`.
+
+
+## Complex
+
+2 types:
+- `complex128` with real and imaginary parts as `float64`
+- `complex64` with real and imaginary parts as `float32`
+
+```go
+var someComplex complex128 = complex(245, 3)
+var someComplex2 complex128 = 245 + 3i 		//literal
+```
+
+
+## Bool
+As usual the type `bool` can have values of `true` or `false`.
+
 
 ## Arrays
 Creating an array is quite simple
@@ -287,9 +335,11 @@ func saveToJSON(filename *os.File, key interface{}){
 		return
 	}
 }
+```
 ---
 
 ## Maps
+
 Built-in data type for situation where you want to associate one value to another, defined like `var someMap map[string]int` (notice this is unitialized or a **nil map**, so trying to access it will cause a panic)
 
 We can declare it like:
@@ -2137,7 +2187,4 @@ To decide when to use a mutex:
 
 
 
---- 
-
-
-## Standard Library
+---
