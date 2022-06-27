@@ -499,7 +499,7 @@ For advanced functionalities related to set look for third party libraries.
 
 Go doesn't have classes because it doesn't have inheritance.
 
-A struct is defined using the keyword `type`, the name of the struct and the keyword `struct`:
+A struct, which is basically a collection of named fields, is defined using the keyword `type`, the name of the struct and the keyword `struct`:
 ```go
 	type city struct {
 		name string
@@ -508,21 +508,32 @@ A struct is defined using the keyword `type`, the name of the struct and the key
 	}
 ```
 
-then we can define variables of that type like:
+Note that if the fields have the same type we can shorthand the definition like:
 ```go
-	var torino city		// var declaration (zero valued)
+	type city struct {
+		name string
+		populationMillions, dimensionKMq int
+	}
+```
+
+
+then we can instanciate variables of that type like:
+```go
+	var torino city		// var declaration (note each filed will be zero valued)
 	
 	milan := city{}		// no difference, as above 
+	florence := new(city) //as above, but florence is of type pointer of city
 	
-	naples := city{
+	naples := city{		//struct literal
 		"Naples",
 		2,
-		35
+		35,
 	}
 	
-	olbia := city{			// with this we can leave out keys or change order
+	olbia := city{		//named struct literal
+		// with this we can leave out keys or change order
 		dimensionKMq: 20,
-		name: "Olbia"
+		name: "Olbia",
 							// any field not specified is zero valued
 	}
 ```
@@ -533,7 +544,7 @@ A field in a struct is accessed via dotted notation:
 	fmt.Println(olbia.name)
 ``` 
 
-NOTE: It’s **idiomatic to encapsulate new struct creation in constructor functions**
+NOTE: It’s **idiomatic to encapsulate new struct creation in constructor functions** typically named as `newStructname` eg `newCity`.
 
 ```go
 type person struct {
@@ -596,6 +607,19 @@ They are used:
 
 Easy: structs that are composed of comparable types are comparable... struct with slices or map fields **are not**.
 
+If we want to compare two structs of the **same type** that are comparable as defined above, we can use the `==` operator which check the equality of all their fields:
+
+```go
+	type salary struct{
+		value int
+		position string
+	}
+
+	s1 := salary{100000, "sw dev"}
+	s2 := salary{100000, "dev ops"}
+
+	fmt.Println(s1 == s2) //true
+```
 
 For *type conversions* from one struct to another one the field of both structs **MUST** have the same names, the same orders and the same types.
 
@@ -603,7 +627,93 @@ Also it is not possible to convert to a struct that has additional fields!
 
 
 
+### Embedding for code composition
+When a struct contains a field of another type **without name**, that field is called an **embedded field** and each of its own fields (and methods!) is automatically *promoted* to the containing struct
+```go
+type Employee struct {
+	Name string
+	ID	string
+}
+
+func (e Employee) Description() string{
+	return fmt.Sprintf("%s (%s)", e.Name, e.ID)
+}
+
+type Manager struct{
+	Employee // <-- embedded field
+	Reports []Employee
+}
+
+m := Manager{
+	Employee: Employee{
+		Name: "JAck",
+		ID: "123"
+	},
+	Reports: []Employee{},
+}
+fmt.Println(m.ID) // note we are indeed not calling anything like m.Employee.ID
+```
+
+If the embedded field has methods or fields with the same name as the containing struct, we need to use the embedded field type to refer to them:
+
+```go
+type Inner struct{
+	X int
+}
+
+type Outer struct{
+	Inner
+	X int
+}
+
+o := Outer{
+	Inner: Inner{
+		X: 10
+	}
+	X: 20
+}
+
+fmt.Println(o.X)
+fmt.Println(o.Inner.X)
+```
+
+Of course remember that embedding is not inheritance but a form of composition!
+
+Often it is suggested to **avoid it** and prefer instead straightforward composotion:
+```go
+type Inner struct{
+	X int
+}
+
+type Outer struct{
+	I Inner
+	X int
+}
+
+i := Inner{20}
+o := Outer{i, 30}
+```
+
+
+
+### Struct tags
+A `struct tag` is a feature of the go language which allows to attach some sort of metadata to the fields of a struct, which then can be used by the `reflect` package to implement some behaviours.
+
+A common case is to instruct how to marshal/unmarshal json, xml, etc... or for interactions with ORMs.
+
+```go
+type sandwich struct{
+	ingredient1 string	`json:"name"`
+	ingredient2 string	`json:"age"`
+}
+```
+
+
 ---
+
+
+
+
 
 ## Loops and Blocks
 
@@ -1245,60 +1355,6 @@ const (
 ```
 
 The first constant in the block has the type specified and its value set to `iota`. Every subsequent line has not type or value assigned to it. The compiler will automatically assign to the first variable the value of 0, then 1, etc... Of course **when a new const block is created, iota is set back to 0**
-
-
-
-### Embedding for code composition
-When a struct contains a field of another type **without name**, that field is called an **embedded field** and each of its own fields (and methods!) is automatically *promoted* to the containing struct
-```go
-type Employee struct {
-	Name string
-	ID	string
-}
-
-func (e Employee) Description() string{
-	return fmt.Sprintf("%s (%s)", e.Name, e.ID)
-}
-
-type Manager struct{
-	Employee // <-- embedded field
-	Reports []Employee
-}
-
-m := Manager{
-	Employee: Employee{
-		Name: "JAck",
-		ID: "123"
-	},
-	Reports: []Employee{},
-}
-fmt.Println(m.ID) // note we are indeed not calling anything like m.Employee.ID
-```
-
-If the embedded field has methods or fields with the same name as the containing struct, we need to use the embedded field type to refer to them:
-
-```go
-type Inner struct{
-	X int
-}
-
-type Outer struct{
-	Inner
-	X int
-}
-
-o := Outer{
-	Inner: Inner{
-		X: 10
-	}
-	X: 20
-}
-
-fmt.Println(o.X)
-fmt.Println(o.Inner.X)
-```
-
-Of course remember that embedding is not inheritance!
 
 
 ### Interfaces
