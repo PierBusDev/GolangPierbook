@@ -336,6 +336,61 @@ func saveToJSON(filename *os.File, key interface{}){
 	}
 }
 ```
+
+
+
+---
+
+## Packages and import/export
+A package is just a directory containing one or more Go source files (or other go packages). Every go file must have a package declaration at the top (else compiler error).
+
+Inside a package any variable of function can be **exported** if they are defined with a name starting by an upper case letter:
+```go
+package something
+
+var myValue int = 1 // not exported, acts like "private" in oop languages
+var MyValue int = 1 //exported
+```
+
+To import a variable/function in another package, we first import the package of interest, then call the functions/variables via dot notation:
+```go
+package main
+
+import "mymodulename/something"
+
+func main(){
+	fmt.Println(something.MyValue)
+}
+```
+
+We can also rename (alias) an import if we need it to avoid collision or just to shorten it:
+```go
+package main
+
+import some "mymodulename/something"
+
+func main(){
+	fmt.Println(some.MyValue)
+}
+```
+
+
+If we want to install an external package from another source (commonly a github page) we use the command `go install` 
+```go
+go install github.com/something/something
+```
+
+and then in the imports we explicity refer to the url
+
+```go
+package main
+
+import (
+	"github.com/something/something"
+)
+```
+
+
 ---
 
 ## Maps
@@ -719,7 +774,7 @@ fmt.Println(addTo(3, []int{1, 2, 3, 4, 5}...))
 ```
 
 
-#### multiple return values
+#### Multiple return values
 
 ```go
 func div(numerator int, denominator int) (int, int, error) {
@@ -868,7 +923,7 @@ NOTE that **we can defer multiple closures** in go functions, and they run in **
 
 It is a very common pattern in GO for **any function that allocates a resource to also return a closure that cleans up that resource**. So for example if we want to have a function which opens a file:
 
-```
+```go
 func getFile(name string) (*os.File, func(), error) {
 	file, err := os.Open(name)
 	if err != nil {
@@ -882,7 +937,8 @@ func getFile(name string) (*os.File, func(), error) {
 ```
 
 and we call it in the main with:
-```
+
+```go
 func calling() {
 	f, closer, err := getFile(os.Args[1])
 	if err != nil {
@@ -1066,6 +1122,26 @@ type TeamScores map[string]Score
 
 In Go types are - theoretically defined - only *abstract* (in the sense they specify just WHAT a type should do, not HOW it is done) or *concrete* (specify WHAT and HOW). There are not partially abstract types like in other languages.
 
+
+### Alias types
+
+An *alias* allows to define just an alternate name for a type. For the runtime the two types are exactly the same and so they are assignable one to the other.
+
+**Note** that this is very different from a new type definition, in that case for the runtime the types are ever different, even if theoretically they are represented in the same way
+
+```go
+	type myString = string //type ALIAS, note the "=" 
+	type myOtherString string //new type definition
+
+	func main(){
+		var somestring string = "ciao"
+		var mine myString
+		var mine2 myOtherString
+
+		mine = somestring //ok!
+		mine2 = somestring //ERROR
+	}
+```
 
 ### Methods
 
@@ -1267,6 +1343,7 @@ Returning `error` (which is an interface type) is a common exception of this rul
 
 
 ### Empty interface represents any type
+**NOTE** since the introduction of the `any` type (which is an alias for `inteface{}`) you should prefer using it directly. In old code is still possible to find `interface{}`.
 
 ```go
 var i interface{}
