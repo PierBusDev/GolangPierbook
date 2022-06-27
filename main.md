@@ -95,6 +95,16 @@ for _, subArr := range twoD{
 
 - Once defined you **cannot change the size** (if you need to add elements you have to create a bigger array and copy the content)
 - When you pass an array to a function as a parameter, you actually **pass a copy** of that array (and if the array is big, copying it will be slow)
+- This is because array are **Value Types** instead of reference types like in java, c#, c++, etc... Which means that even when assigning an array to another variable, it will be copied.
+
+```go
+	var array = [5]string{"ciao", "hola", "welcome", "salut", "benennidos"}
+	var secondArray = array
+
+	secondArray[0] = "buongiorno"
+	fmt.Println(array[0]) //ciao
+	fmt.Println(secondArray[0]) //buongiorno
+```
 
 These two advantages are enough to make **arrays rarely used** in go.
 
@@ -568,6 +578,19 @@ pperson.age = 51
 fmt.Println(pperson.age) //51
 ```
 
+
+### Struct are Value Types
+
+Being value types means that when we assign a structure to another one of the same type, a **new copy** is created and assigned:
+
+```go
+	p1 := person{"Peter", 23}
+	p2 := p1
+
+	p2.age = 33
+	fmt.Println(p2.age) //33
+	fmt.Println(p1.age) //23
+```
 
 ### Anonymus structs
 We can declare variables that implement a struct type without giving it a name first.
