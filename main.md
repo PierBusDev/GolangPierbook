@@ -287,6 +287,9 @@ A go string is a **read-only byte slice** that can hold any type of byte and hav
 `fmt.Printf` has a `%q` verb to print a double-quoted string safely escaped, while `%+q` will garanteee ASCII only output.
 
 
+To see a good cheatsheet about *formatting verbs* for most types go [here](https://yourbasic.org/golang/fmt-printf-reference-cheat-sheet/).
+
+
 ### What is a rune
 A `rune` is an `int32` value used to represent Unicode (UTF-8) code point (aka a numeric value used for representing single unicode chars). A *rune literal* or *rune constant* is a character in single quotes.
 
@@ -352,7 +355,9 @@ func saveToJSON(filename *os.File, key interface{}){
 ---
 
 ## Packages and import/export
-A package is just a directory containing one or more Go source files (or other go packages). Every go file must have a package declaration at the top (else compiler error).
+In Go an application is organized in packages which is a collection of source files located in the same folder. All source files in a folder must have the same package name at the top of the file.
+
+By convention packages are named to be the same as the folder they are located in.
 
 Inside a package any variable of function can be **exported** if they are defined with a name starting by an upper case letter:
 ```go
@@ -827,7 +832,7 @@ Also the **value** in a for-range loop **is always a COPY** and not a reference 
 ```go
 for _, word := range words {
 	switch size := len(word); size {
-	case 1, 2, 3, 4:
+	case 1, 2, 3, 4: //note multiple cases
 		fmt.Println(word, "is a short word!")
 	case 5:
 		wordLen := len(word)
@@ -941,6 +946,19 @@ func divAndRemainder(numerator int, denominator int) (result int, remainder int,
 What we are doing is just pre-declaring (and so initializing) variables that we use within the function. We can return them before any explicit use or assignment.
 Obviously those name are enforced only INSIDE the function.
 
+#### Naked Return
+
+If named return values are used, a `return` statement without arguments will return those values.
+This is known as a *naked* return.
+
+```go
+func SumAndMultiplyThenMinus(a, b, c int) (sum, mult int) {
+    sum, mult = a+b, a*b
+    sum -= c
+    mult -= c
+    return //this will actually return sum, mult
+}
+```
 
 #### Functions are values
 
