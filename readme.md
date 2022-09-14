@@ -1837,6 +1837,15 @@ The rule of thumb for using generics is the same of all other languages: use the
 
 ## Concurrency in Go
 
+### Concepts
+
+- **data race** -> different processes want to access the same resource concurrently
+- **race conditions** -> occurs when the orders of access of different processes affects the correctness of the data 
+- **deadlock** -> occurs when all processes are blocked while waiting on eachother
+- **livelock** -> all processes are running actively but the operations that are being executed do not move the state of the program forward, basically stalling its execution
+- **starvation** -> a process cannot access the resources needed and cannot complete (can happen because of deadlocks, or livelocks due to resource assignment mismanagement)
+
+
 ### Goroutines
 
 Just to have clear definitions:
@@ -1878,6 +1887,8 @@ Goroutines communicate using `channels`. Like `slices` and `maps`, `channels` ar
 ```go
 ch := make(chan int)
 ```
+
+A channel is a communications pipe between goroutines. Things go in one end and come out another in the same order until the channel is closed.
 
 When passing a channel to a function, we are just passing a pointer to the channel. It's zero value is `nil`.
 
@@ -1932,7 +1943,7 @@ When done using a `channel` we close it using the builtin `close` function
 Once closed, any attemp to **write** or **close** again the channel will `panic`. Instead a **read** will always succeed. 
 
 - In the case of a BUFFERED channel, reading after close will return all the values not read yet, or the zero value for the channel type if empty.
-- In the case of a UNBUFFERED channel, reading after close will return the zero value fort he channel type.
+- In the case of a UNBUFFERED channel, reading after close will return the zero value for the channel type.
 
 This is a problem because now we need to discriminate between a `nil` element returned because it is the zero value of the channel which is empty, and a `nil` returned because it was an element previously inserted in the channel! To solve this we use the `comma-ok` idiom so we can detect whether a channel has been closed or not:
 
@@ -1993,7 +2004,7 @@ If there is more than one go routine writing in the same channel it all becomes 
 #### Select
 The `select` statement is the control structure for concurrency in Go. It solves the problem "*if you can perform two concurrent operations, which one do you do first?*" (Remember that favoring one over the other is extremely problematic because you risk to never process some cases -> **starvation**)
 
-The `select` keyword allows a goroutine to **read or write to one of a set of multiple channels**
+The `select` keyword t blocks the code and waits for multiple channel operations simultaneously, allowing a goroutine to **read or write to one of a set of multiple channels**
 
 ```go
 select {
@@ -2082,6 +2093,19 @@ When using a *for-select* it is important to **include a way to exit the loop** 
 A `select` statement can also have a `default` clause which is selected when there are no cases with channels that can be read or written.
 When we use a `for-select` it is considered **almost always wrong** to have a default case inside because it will make the loop run constantly (instead of pausing), causing a great consumption of cpu resources.
 
+```go
+	for x := 0; x < 10; x++ {
+		select {
+		case result := <-one:
+			fmt.Println("Received:", result)
+		case result := <-two:
+			fmt.Println("Received:", result)
+		default:
+			fmt.Println("Default...")
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+```
 
 
 ### Concurrency Practices and Patterns
@@ -2333,6 +2357,8 @@ We have a `select` choosing over two cases:
 #### WaitGroups
 Sometimes one goroutine needs to wait for multiple goroutines to complete their work. To wait for a single goroutine we keep using the `done` channel pattern as before, but for this new case we need to use `waitGroup` from the `sync` package of the stdlib
 
+A WaitGroup waits for a collection of goroutines to finish. The main goroutine calls `Add` to set the number of goroutines to wait for. Then each of the goroutines runs and calls `Done` when finished. At the same time, `Wait` can be used to block until all goroutines have finished.
+
 ```go
 func main(){
 	var wg sync.WaitGroup
@@ -2413,6 +2439,8 @@ The are two mutex implementation in the `sync` package:
 
 The first is called `Mutex` and has two methods `Lock` and `Unlock`. Calling `Lock` causes the current goroutine to pause as long as another one is currently in the critical section. When the critical section is clear the lock is *acquired* by the current goroutine. A call to `Unlock`marks the end of the critical section.
 
+We can also use `TryLock` which tries to lock and reports if it went successfull.
+
 The second is `RWMutex` and allows to have both *reader locks* and *writer locks*: only one writer can be in the critical section at time, while reader locks are shared as in multiple readers can be in the critical section at once. The writer lock is managed by `Lock` and `Unlock` methods, the reader lock is managed by `RLock` and `RUnlock` methods.
 
 Every time we acquire a lock we must make sure that we release it. **It is convention to use a `defer`** statement to call `Unlock` **immediatly** after `Lock` or `RLock`:
@@ -2425,21 +2453,37 @@ type MutexScoreboardManager struct{
 
 func NewMutexScoreboardManager() *MutexScoreboardManager{
 	return &MutexScoreboardManager{
-		scoreboard: map[string]int{}
+		scoreboard: map[string]int{},
 	}
 }
 
-func(msm *MutexScoreboardManager) Update(name string, val int){
+func(msm *MutexScoreboardManager) Update(name string, val int, wg *sync.WaitGroup){
 	msm.l.Lock()
+	defer wg.Done()
 	defer msm.l.Unlock()
 	msm.scoreboard[name] = val
 }
 
-func(msm *MutexScoreboardManager) Read(name string) (int, bool){
+func(msm *MutexScoreboardManager) Read(name string){
 	msm.l.RLock()
 	defer msm.l.RUnlock()
-	val, ok := msm.scoreboard[name]
-	return val, ok
+	val, _ := msm.scoreboard[name]
+	fmt.Println(val)
+}
+
+func main(){
+	var wg sync.WaitGroup
+	scoreboard := NewMutexScoreboardManager()
+
+	wg.Add(3)
+
+	go scoreboard.Update("Jack", 5, &wg)
+	go scoreboard.Update("Jack", 6, &wg)
+	go scoreboard.Update("Julie", 3, &wg)
+
+	wg.Wait()
+	go scoreboard.Read("Jack")
+	time.Sleep(2 * time.Second)
 }
 ```
 
@@ -2448,6 +2492,74 @@ To decide when to use a mutex:
 - if you are sharing access to a field in a struct: use mutexes
 - when data is stored in external services like HTTP servers or dbs: don't use mutex
 
+**NOTE** as with waitgroups, also **mutex must NOT be copied but passed as pointers when needed**.
 
+
+
+
+### Cond
+
+`sync.Cond` can be used to coordinate goroutines which want to share resources, signaling to those waiting when the state of the resource of interest changes.
+
+Each `Cond` object has an associated mutex (`*Mutex` or `RWMutex`).
+
+A simple but very common usecase is when we have a process which is receiving data from some external source and other processes must wait for this one so they can read. We could use a simple mutex or channel but in that case we could notify only ONE process, a `Cond` allow us to notify multiple processes at the same time.
+
+It has the methods:
+- `NewCond(l Locker)` returns a new Cond
+- `Broadcast()` wakes all goroutines waiting on the condition
+- `Signal()` wakes ONE goroutine waiting on the condition
+- `Wait()` atomically unlocks the mutex lock
+
+Note that `Locker` is an interface implemented both by `sync.Mutex` than `sync.RWMutex`:
+
+```go
+type Locker interface {
+    Lock()
+    Unlock()
+}
+```
+
+
+Usage example for `Cond`:
+
+```go
+var  writingComplete = false
+
+func readData(readerName string, cond *sync.Cond){
+	cond.L.Lock()
+	defer cond.L.Unlock()
+	for !writingComplete {
+		cond.Wait()
+	}
+
+	fmt.Println(readerName + " now reading")
+
+}
+
+func writeData( cond *sync.Cond){
+	fmt.Println("simulating some writing")
+	time.Sleep(1 * time.Second)
+
+	cond.L.Lock()
+	writingComplete = true;
+	cond.L.Unlock()
+
+	fmt.Println("now signaling to everyone they can read")
+	cond.Broadcast()
+}
+
+func main(){
+	var m sync.Mutex
+	cond := sync.NewCond(&m)
+
+	go readData("Reader 1", cond)
+	go readData("Reader 2", cond)
+	go readData("Reader 3", cond)
+	writeData(cond)
+
+	time.Sleep(4 * time.Second)
+}
+```
 
 ---
