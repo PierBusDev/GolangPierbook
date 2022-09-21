@@ -2110,6 +2110,13 @@ When we use a `for-select` it is considered **almost always wrong** to have a de
 
 ### Concurrency Practices and Patterns
 
+#### Atomic Package
+
+In go stdlib there is an `atomic` [link](https://pkg.go.dev/sync/atomic) package which contains low-level primitives which are very useful to implement synchronization algos. They must be used rarely, synchronization is easier and less error prone when done usyng the `sync` package (see below) and channels.
+
+Methods in the `atomic` package are divided by the type used, we have methods for `int32`, `int64`, `uint32`, `uint64`, `uintptr` and `bool`. 
+
+The atomic methods are: `Swap`, `Add`, `CompareAndSwap`, `Load`, `Store`.
 
 #### Keep APIs Concurrency-Free
 You should never expose channels and mutex in your APIs types, functions or methods, else you put the responsability of managing them in the users of the API
@@ -2562,4 +2569,362 @@ func main(){
 }
 ```
 
----
+
+
+### Once
+
+`sync.Once` guarantees that only one execution will be run, even if more than one goroutine is waiting. To do so it has a method `Do(f func())` which, of course, even if called multiple times will ensure that only the first call will invoke the function `f`.
+
+```go
+
+	func main(){
+		var wins int
+		var once sync.Once
+		var matches sync.WaitGroup
+
+		addWin := func(){
+			wins ++
+		}
+
+		matches.Add(20)
+
+		for i:= 0; i < 20; i++{
+			go func(){
+				defer matches.Done()
+				once.Do(addWin)
+			}
+		}
+
+		matches.Wait()
+		fmt.Println(wins) //it will print 1
+	}
+```
+
+
+### Pool
+
+To avoid creating and garbage collecting lot of heavy objects time over time, we can use `sync.Pool` which is a scalable pool of temporary objects and it is also concurrency-safe. The object pool can shrink and expand based on the load.
+
+**NOTE**: do not copy a pool after its first use.
+
+It has two methods:
+- `Get()` to obtain one (random) item from the Pool (it will be removed from the pool and returned to the caller)
+- `Put(obj any)` adds the item to the Pool
+
+When creating a `sync.Pool` we can pass an optional function (which we most often want indeed to pass) which will generate a value when we call `Get` instead of returning `nil`.
+
+```go
+type City struct {
+	Name string
+	Population int
+}
+
+var myPool = sync.Pool{
+	New: func() any{ //pay attention to the function signature here
+		fmt.Println("creating new city")
+		return &City{}
+	}
+}
+
+func main(){
+	city := myPool.Get().(*City) //pay attention to the type assertion here!
+	//putting it back
+	myPool.Put(city)
+	city.Name = "Turin"
+	city.Population = 1000000
+
+	//now using get will return the object we just created because we put it back in the pool
+	city2 := myPool.Get().(*City)
+	fmt.Printf("%s", city2.Name) // will print "Turin"
+	city3 := myPool.Get().(*City) //this will get now a new object because there isn't any left inside the pool
+	fmt.Printf("%s", city3.Name) // will print ""
+}
+
+```
+
+
+### Map 
+
+`sync.Map` is a special form of `map[any]any` which has the property of being safe for concurrent usage without using lock or coordinating goroutines. Note that in exchange we lose type safety and speed. In general it is almost always better to use a common `map`
+
+`sync.Map` is optimized for:
+- cache-like usages, like when a key is written only once but read many many times
+- when we have lot of goroutines writing and overwriting entities inside a map, in which case the performance of `sync.Map` would be greatly better than using a `map` with `Mutex`
+
+**NOTE**: `sync.Map` must NOT be copied after use
+
+It has the methods:
+- `Store(key, value any)` sets the value for the key
+- `Load(key any)` returns the value stored related to the key, or `nil` 
+- `Delete(key any)` deletes the value related to the key
+- `LoadAndDelete(key any)` deletes the value for the related key and returns it if present
+- `LoadOrStore(key, value any)` returns the existing value related to the key IF present. If not it stores the given value.
+- `Range(f func(key, value any) bool)` calls `f` sequentially for each key and value present in the map. If f returns false, range stops the iteration.
+
+
+
+
+## Concurrency Common Patterns
+
+
+### Generator
+
+We have a *generator* function which returns a sequence of values, or to be more precise, in go, it will return a channel from which we will be capable of getting the produced values. (If you are used to javascript, it is like the `yield` keyword)
+
+```
+	_________________________
+	|						|	--------> Value1
+	|						|	--------> Value2
+	|   GENERATOR			|	--------> Value3
+	|						|	...
+	|						|	--------> ValueN
+	|_______________________|
+
+```
+
+```go
+func myGenerator() <-chan int{
+	ch := make(chan int)
+
+	go func(){
+		for  i := 0; i < 5 ; i++{
+			ch <- i
+		}
+	}()
+
+	return ch
+}
+
+func main(){
+	ch := myGenerator()
+
+	for  i := 0; i < 5 ; i++{
+		fmt.Println( <- ch)
+	}
+}
+```
+
+
+
+### Fan-in
+
+We combine multiple inputs into a single *output channel*. Usually we don't care about input order
+```
+	_________________
+	|				|		
+	|   input1		|	---------|
+	|_______________|			 |
+								 |
+	_________________            |
+	|				|			 |
+	|   input2		|	---------| 
+	|_______________|			 |
+								 |				_________________
+	_________________            |				|				|
+	|				|		     ----------->   |   output		|
+	|   input3		|	---------|				|_______________|
+	|_______________|			 |
+								 |
+			...					 |
+								 |
+	_________________			 |
+	|				|			 |
+	|   inputN		|	---------|
+	|_______________|
+
+```
+
+```go
+func produce(values []int) <- chan int{
+	ch := make(chan int)
+
+	go func(){
+		defer close(ch)
+
+		for _, v := range values{
+			ch <- v
+		}
+	}()
+
+	return ch
+}
+
+
+func fanIn(inputs ... <- chan int) <- chan int{
+	var wg sync.WaitGroup
+	wg.Add(len(inputs))
+	out := make(chan int)
+
+	for _, input := range inputs { //for each input channel
+
+		go func(ch <- chan int){ //this goroutine will wait on the input channels
+			for {
+				value, ok := <- ch
+				if !ok{
+					wg.Done()
+					break
+				}
+				out <- value
+			}
+		}(input)
+	}
+
+	go func(){ //this gourite will close the output channel once all input channels are done
+		wg.Wait()
+		close(out)
+	}()
+
+	return out
+}
+
+
+func main(){
+	input1 := produce([]int{1,2,3,4})
+	input2 := produce([]int{5,6,7,8})
+	input3 := produce([]int{9,10,11,12})
+
+	out := fanIn(input1, input2, input3)
+
+	for v := range out{
+		fmt.Println(v)
+	}
+}
+
+```
+
+
+### Fan-out
+
+We split a single input channel into multiple output channels, very useful when we want to redistribute computations into multiple actors/routines.
+
+```
+								_________________
+								|				|		
+					|---------->|   output1		|	
+					|			|_______________|	
+					|								
+					|			_________________   
+					|			|				|	
+					|---------->|   output2		|	
+					|			|_______________|	
+_________________	|
+|				|	|
+|   input		|---|
+|_______________|	|									
+					|			_________________   
+					|			|				|	
+					|---------->|   output3		|	
+					|			|_______________|	
+					|								
+					|					...			
+					|								
+					|			_________________	
+					|			|				|	
+					|---------->|   outputN		|	
+								|_______________|
+
+```
+
+```go
+func produce(values []int) <- chan int{
+	ch := make(chan int)
+
+	go func(){
+		defer close(ch)
+
+		for _, v := range values{
+			ch <- v
+		}
+	}()
+
+	return ch
+}
+
+func fanOut(input <- chan int) <- chan int {
+	out := make(chan int)
+
+	go func() {
+		defer close(out)
+
+		for data := range input {
+			out <- data
+		}
+	}()
+
+	return out
+}
+
+func main(){
+	data := []int{1,2,3,4,5,6,7,8,9,10}
+	input := produce(data)
+
+	out1 := fanOut(input)
+	out2 := fanOut(input)
+	out3 := fanOut(input)
+	out4 := fanOut(input)
+
+	for range data {
+		select{
+		case value := <- out1:
+			fmt.Println("Output 1 got:", value)
+		case value := <- out2:
+			fmt.Println("Output 2 got:", value)
+		case value := <- out3:
+			fmt.Println("Output 3 got:", value)
+		case value := <- out4:
+			fmt.Println("Output 4 got:", value)
+		}
+	}
+
+}
+```
+
+
+### Pipeline
+
+Very simple: we imagine groups of goroutines and each gruop is running the same function. Each of these groups are connected by channels, receiving data from **upstream**  and sending values **downstream**.
+
+The first group is tipically called the **producer** while the last one is called the **consumer**
+
+```
+	_________________					_________________					_________________					_________________
+	|				|					|				|					|				|					|				|		
+	|   producer	|	--------->		|   stage1		|	--- ... --->	|   stageN		|	--------->		|   consumer	|	
+	|_______________|					|_______________|					|_______________|					|_______________|		
+
+
+```
+
+The benefits of separating in groups in this way are that we make the function performed by each group strongly independent and as a consequence we make it easier to combine those groups in a different way when needed.
+
+```go
+func multiply(input <- chan int, multiplier int) <-chan int{
+	out := make(chan int)
+
+	go func(){
+		defer close(out)
+
+		for v := range input{
+			out <- v * multiplier
+		}
+	}()
+
+	return out
+}
+
+func filter(input <-chan int, filterValue int) <-chan int {
+	out := make(chan int)
+
+	go func() {
+		defer close(out)
+
+		for v := range input {
+			if v > filterValue {
+				out <- v
+			}
+		}
+	}()
+
+	return out
+}
+```
