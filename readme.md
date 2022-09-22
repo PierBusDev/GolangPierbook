@@ -1,5 +1,9 @@
 #  Go Pierbook
 
+This that follows is not a cheatsheet, it is not a reference book and it is not a comprehensive recap of all feature of Golang. This is just a collection of my notes while learning the language. Everything here is written by me, part of it is my original work, part of it is something I read from some books or courses and I reformulated that to better suite my mind, and some of it are things collegues teached to me. 
+
+Hoping this could be helpful also to you dear reader, have a nice read.   
+
 ## Hello World
 
 ```go
@@ -2898,6 +2902,20 @@ The first group is tipically called the **producer** while the last one is calle
 The benefits of separating in groups in this way are that we make the function performed by each group strongly independent and as a consequence we make it easier to combine those groups in a different way when needed.
 
 ```go
+func generate(values []int) <- chan int{
+	ch := make(chan int)
+
+	go func(){
+		defer close(ch)
+
+		for _, v := range values{
+			ch <- v
+		}
+	}()
+
+	return ch
+}
+
 func multiply(input <- chan int, multiplier int) <-chan int{
 	out := make(chan int)
 
@@ -2926,5 +2944,101 @@ func filter(input <-chan int, filterValue int) <-chan int {
 	}()
 
 	return out
+}
+
+func main() {
+	in := generate([]int{0, 1, 2, 3, 4, 5, 6, 7, 8,9,10})
+
+	out := multiply(in, 2) 
+	out = filter(out, 15) 
+
+
+	for value := range out {
+		fmt.Println(value)
+	}
+}
+```
+
+
+
+### Worker Pool
+
+A very simple pattern in which we distribute the actions we want to complete over multiple goroutines ( **workers** ) concurrently.
+
+We use a channel to send our actions to the workers, and another one to collect the result from the workers once they are done.
+
+```
+								_____________
+								|			|		
+					|---------->|  worker1	|-----------|
+					|			|___________|			|
+					|									|
+					|			_____________  			|
+					|			|			|			|
+					|---------->|  worker2	|-----------|
+					|			|___________|			|
+_________________	|									|	 __________
+|				|	|									|	 |		  |	
+|   input		|---|									|--->| output |
+|_______________|	|									|	 |________|
+					|			_____________  			|
+					|			|			|			|
+					|---------->|  worker3	|-----------|
+					|			|___________|			|
+					|									|
+					|				...					|
+					|									|
+					|			_____________			|
+					|			|			|			|
+					|---------->|  workerN	|-----------|
+								|___________|
+
+```
+
+```go
+func worker(id int, actions <-chan int, results chan<- int) {
+	var wg sync.WaitGroup
+
+	for action := range actions {
+		wg.Add(1)
+
+		go func(action int) {
+			defer wg.Done()
+
+			fmt.Printf("Worker %d started action %d\n", id, action)
+			result := action * 10 //just simulating something
+			results <- result
+			fmt.Printf("Worker %d finished action %d\n", id, action)
+		}(action)
+	}
+
+	wg.Wait()
+}
+
+const totalActions = 8
+const totalWorkers = 4
+
+func main() {
+	//note here channel are buffered
+	actions := make(chan int, totalActions)
+	results := make(chan int, totalActions)
+
+	for w := 1; w <= totalWorkers; w++ { //getting workers ready
+		go worker(w, actions, results)
+	}
+
+	// Send action to the channel so workers will take it
+	for action := 1; action <= totalActions; action++ {
+		actions <- action
+	}
+
+	close(actions)
+
+	// Receive results
+	for action := 1; action <= totalActions; action++ {
+		<-results
+	}
+
+	close(results)
 }
 ```
