@@ -32,6 +32,9 @@ var ( //multi line
 
 Shortand declarations work only inside a function scope, the compiler will report an error if used outside of it.
 
+### Zero Value as a Concept
+
+In Go when we allocate memory for a variable via declarations or by using new and the variable is not explicitly initialized, the value of such variables are automatically initialized with their **zero value**. The initialization of the zero value is done recursively: every element of an array or a structs has its fields *zeroed*.
 
 ## Constants
 
@@ -110,14 +113,14 @@ for _, subArr := range twoD{
 	fmt.Println(secondArray[0]) //buongiorno
 ```
 
-These two advantages are enough to make **arrays rarely used** in go.
+These two disadvantages are enough to make **arrays rarely used** in go.
 
 
 
 ## Slices
 The only case in which we prefere using arrays instead of slices is when we know the max size of the array.
 
-Slices **are passed by reference** to functions, so the modifications we make to them inside the functions are not lost once we exit.
+Slices **are passed by reference** to functions, so the changes we make to them inside the functions are not lost once we exit.
 
 ```go
 x := [4]int{5,6,7,8}	//array if we specify length
@@ -211,7 +214,7 @@ It's simple, we just take a slice of it. But be careful -> **a slice of an array
 1. the destination slice
 2. the source slice
 
-It returns the number of elements copies and it tries to copy as many values as it can from source to destination, **limited by whichever is smaller**. 
+It returns the number of elements copied and it tries to copy as many values as it can from source to destination, **limited by whichever is smaller**. 
 NOTE: the capacity doesn't matter, the **length** is what is important!
 
 ```go
@@ -288,7 +291,7 @@ Strings in go are value types, not pointers like in C. Go also supports UTF8 by 
 
 A go string is a **read-only byte slice** that can hold any type of byte and have arbitrary length. To find the length of a string we use the `len()` function. 
 
-`fmt.Printf` has a `%q` verb to print a double-quoted string safely escaped, while `%+q` will garanteee ASCII only output.
+`fmt.Printf` has a `%q` verb to print a double-quoted string safely escaped, while `%+q` will make ASCII only output.
 
 
 To see a good cheatsheet about *formatting verbs* for most types go [here](https://yourbasic.org/golang/fmt-printf-reference-cheat-sheet/).
@@ -324,7 +327,7 @@ func examineRune(r rune) {
 ### JSON
 The `encoding/json` package offers the `Encode()` and `Decode()` functions, allowing conversion of Go objects into JSON documents and viceversa.
 
-The functions above work on single objects, while `Marshal()` and `Unmarshal()` work on multiple objects.
+The functions below work on single objects, while `Marshal()` and `Unmarshal()` work on multiple objects.
 
 
 ```go
@@ -363,7 +366,7 @@ In Go an application is organized in packages which is a collection of source fi
 
 By convention packages are named to be the same as the folder they are located in.
 
-Inside a package any variable of function can be **exported** if they are defined with a name starting by an upper case letter:
+Inside a package any variable or function can be **exported** if they are defined with a name starting by an upper case letter:
 ```go
 package something
 
@@ -414,7 +417,7 @@ import (
 
 ## Maps
 
-Built-in data type for situation where you want to associate one value to another, defined like `var someMap map[string]int` (notice this is unitialized or a **nil map**, so trying to access it will cause a panic)
+Built-in data type for situations where you want to associate one value to another, defined like `var someMap map[string]int` (notice this is unitialized or a **nil map**, so trying to access it will cause a panic)
 
 We can declare it like:
 ```go
@@ -538,7 +541,7 @@ Note that if the fields have the same type we can shorthand the definition like:
 
 then we can instanciate variables of that type like:
 ```go
-	var torino city		// var declaration (note each filed will be zero valued)
+	var torino city		// var declaration (note each field will be zero valued)
 	
 	milan := city{}		// no difference, as above 
 	florence := new(city) //as above, but florence is of type pointer of city
@@ -660,7 +663,7 @@ Also it is not possible to convert to a struct that has additional fields!
 
 
 ### Embedding for code composition
-When a struct contains a field of another type **without name**, that field is called an **embedded field** and each of its own fields (and methods!) is automatically *promoted* to the containing struct
+When a struct contains a field of another type **without name**, that field is called an **embedded field** and each of its own fields are automatically *promoted* to the containing struct
 ```go
 type Employee struct {
 	Name string
@@ -686,7 +689,7 @@ m := Manager{
 fmt.Println(m.ID) // note we are indeed not calling anything like m.Employee.ID
 ```
 
-If the embedded field has methods or fields with the same name as the containing struct, we need to use the embedded field type to refer to them:
+If the embedded field has fields with the same name as the containing struct, we need to use the embedded field type to refer to them:
 
 ```go
 type Inner struct{
@@ -711,7 +714,7 @@ fmt.Println(o.Inner.X)
 
 Of course remember that embedding is not inheritance but a form of composition!
 
-Often it is suggested to **avoid it** and prefer instead straightforward composotion:
+Often it is suggested to **avoid it** and prefer instead straightforward composition:
 ```go
 type Inner struct{
 	X int
@@ -773,7 +776,7 @@ for i := 0; i < 10; i++ {
 	fmt.Println(i)
 }
 ```
-Note that we must use `:=` to initialize variables, `var` is not allowed here!
+Note that we must use `:=` to initialize variables (or `=` if we already initialized a variable with the same name previously in the same scope), `var` is not allowed here!
 
 
 ##### 2. Condition only for
@@ -793,6 +796,7 @@ for i < 100 {
 ```go
 for {
 	fmt.Println("Hello")
+	break
 }
 ```
 
@@ -853,7 +857,7 @@ By default **cases in switch statements don't fall through**, no need to `break`
 So when we need more cases to do the same thing, we just use a comma to separate them in the same case block (there is also a `fallthrough` keyword but it is very rarely used).
 For the line with `case 6, 7, 8, 9:` we have an empty block, so nothing happens.
 
-NOTE: We can switch on **any type that can be compared with ==**, so any built-in type EXCEPT slices, maps, channels, functions and structs that contain those.
+NOTE: We can switch on **any type that can be compared with ==**, so any built-in type EXCEPT slices, maps, channels, functions... and structs that contain those.
 
 
 We can also create a **blank switch** that is a switch that does not specify which value we are comparing against. In a normal switch we can just compare for equality, in a blank switch we can use directly a boolean comparision for each case. EG:
@@ -1233,16 +1237,16 @@ func update(px *int) {
 ```
 
 
-Said so, when possible avoid to use pointers because they make harder to understand data flow and can create extra work for the garbage collector.
+Said so, when possible avoid to use pointers because they make it harder to understand data flow and can create extra work for the garbage collector.
 
 
 
 
 ### Pointers - Map and Slices
 
-Withing go, a **map** is implemented as a pointer to a struct: passing a map to a function means that we are copying a pointer. That's why modifications made to a map inside a function are reflected in the original variable in which it was passed in.
+Within go, a **map** is implemented as a pointer to a struct: passing a map to a function means that we are copying a pointer. That's why modifications made to a map inside a function are reflected in the original variable in which it was passed in.
 
-Because of this **avoid using maps for input parameters or return values**, especially in public APIs.
+Because of this **avoid using maps as input parameters or return values**, especially in public APIs.
 
 
 For **slices** it is more complicated:
@@ -1334,7 +1338,7 @@ Even the **receivers** can be *pointer receivers*  or *value receivers*. The rul
 - If the method needs to modify the receiver or handle `nil` instances --> POINTER receiver
 - Else --> VALUE receiver
 
-But generally, if a type as even a single method which use a *pointer* receiver, every single method will use a pointer receiver as common practice.
+But generally, if a type has even a single method which use a *pointer* receiver, every other method will use a pointer receiver as common practice.
 
 ```go
 
@@ -1369,7 +1373,7 @@ type Employee Person
 
 Even doing this we are NOT CREATING any hierarchy, so we cannot use a "child-type" whenever in the code we expect a "parent-type".
 
-Also any methods defined for one type is not present also in the sub-defined one.
+Also any method defined for one type is not present also in the sub-defined one.
 
 ```go
 var i int = 300
@@ -1384,7 +1388,7 @@ hs = HishScore(s)	//ok
 
 
 ### iota for Enumerations
-Go **doesn't** have an enumeration type, instead uses a similar concept called **iota**.
+Go **doesn't** have an enumeration type, instead it uses a similar concept called **iota**.
 
 First, as best practice, we create a type based on int that will represent all of the valid values `type MailCategory int`
 
@@ -1460,16 +1464,16 @@ i = struct {
 One common use for the empty interface is as a placeholder for data of uncertain schema which is read from an external source (Eg JSON api).
 
 ```go
-data := map[string]interface{}{} //first {} for interface{} type, secondo to instanciate the map
+data := map[string]interface{}{} //first {} for interface{} type, second to instanciate the map
 contents, err = ioutil.ReadFile("testdata/sample.json")
 if err != nil{
 	return err
-}*
+}
 defer contents.Close()
 json.Unmarshal(contents, &data) //put contents in the data map
 ```
 
-Another case where we use the empty interface, is a way to store a value in a user-created data structure where we want to store a lot of different types, and we cannot (yet) use generics.
+Another case where we use the empty interface is a way to store a value in a user-created data structure where we want to store a lot of different types, and we cannot (yet) use generics.
 
 To read back a value stored in an `inteface{}` we need to understand **type assertions** and **type switches**.
 
@@ -1719,7 +1723,7 @@ if errors.As(err, &myErr){
 
 ### Panic 
 
-Go generates **panic** whenever there is a situation where the Go runtime is unable to figure out what should happen next (eg for a programming error like trying to read past the end of a slice, or environmental problem like running out of memory).
+Go generates **panic** whenever there is a situation where the Go runtime is unable to figure out what should happen next (eg for a programming error like trying to read past the end of a slice, or an environment problem like running out of memory).
 
 When a panic happens the current function exits immediatly and any defer attached to it is called. When this is complete, the defers attached to the calling function run, ans so on until main is reached. Then the program exits with a message + stack trace.
 
@@ -1830,7 +1834,7 @@ In the experimental packages we have a `constraints` [package](https://pkg.go.de
 	}
 ```
 
-**NOTE** the new go tonek `~` which when used near a type means *the set of all types whose underlying type is the one following ~`.
+**NOTE** the new go token `~` which when used near a type means *the set of all types whose underlying type is the one following ~*.
 
 
 The rule of thumb for using generics is the same of all other languages: use them only when you end up writing very similar code at least 2-3 times.
@@ -1867,7 +1871,7 @@ Advantages of goroutines:
 
 All this allows to run thousands of goroutines when needed, without problems.
 
-To start a goroutine we put a `go` keyword before a *function invocation*. Note that **any value returned be a goroutine is ignored!** The result of the function is instead written back to a different `channel` (we see them later)
+To start a goroutine we put a `go` keyword before a *function invocation*. Note that **any value returned by a goroutine is ignored!** The result of the function is instead written back to a different `channel` (we see them later)
 
 ```go
 func process(val int) int {
@@ -1932,6 +1936,7 @@ It is possible to read from a channel using a `for range` loop:
 ```go
 for v :=  range ch { //this loop will continue until the channel is closed (or a break/return is reached)
 	fmt.Println(v)
+	//...
 }
 ```
 
