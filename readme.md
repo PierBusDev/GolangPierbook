@@ -2005,7 +2005,7 @@ For a **Close**:
 - `nil`: **panic**
 
 
-Because as said before we must **avoid panics**, the standard pattern is to let the writing goroutine to be responsible for closing the channel. 
+Because as said before we must **avoid panics**, the standard pattern is to let the writing goroutine be responsible for closing the channel. 
 
 If there is more than one go routine writing in the same channel it all becomes more complicated... to address this, as we will se below, we have to use something like `sync.WaitGroup`.
 
@@ -2030,7 +2030,7 @@ select {
 
 It is visually similar to a `switch`, but each `case` is a read or a write to a channel: if a read/write is possible for a case, it is executed with the body of the case itself.
 
-If multiple cases have channels that can read or write the `select` **picks randomly from any of its cases** and the **order is unimportant**. Note that this is very different from a normal `switch` which takes just the first `case` at true. This **solves also the starvation** problem because all cases are checked at the same time.
+If multiple cases have channels that can read or write, the `select` **picks randomly from any of its cases** and the **order is unimportant**. Note that this is very different from a normal `switch` which takes just the first `case` at true. This **solves also the starvation** problem because all cases are checked at the same time.
 
 It also prevents the most common case for **DEADLOCKS** which is acquiring locks in an inconsistent order: eg when we have 2 goroutines both accessing the same 2 channels, we must be sure to access them in the same order in both goroutines or they will deadlock and wait on each other.
 
